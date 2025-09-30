@@ -1,4 +1,4 @@
-# catagent_classifier.py
+# summarizedata_classifier.py
 from sutra import Agent
 
 classifier = Agent(

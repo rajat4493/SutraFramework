@@ -1,10 +1,10 @@
-# catagent_summarizer.py
+# summarizedata_summarizer.py
 from sutra import Agent
 
 summarizer = Agent(
     name='summarizer',
     objective='Create clear summary and actionable output',
-    model='mistral:latest',
+    model='llama3:latest',
     prompt='''Create a comprehensive summary and final output.
 
 Original content: {text}

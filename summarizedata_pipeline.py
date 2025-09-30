@@ -1,5 +1,5 @@
-# catagent_pipeline.py
-# Pipeline: summarize the document
+# summarizedata_pipeline.py
+# Pipeline: Summarize the text and classify it
 # Edit AGENT_ORDER list to choose which agents to use and in what order
 
 from sutra import Step, Pipeline
@@ -7,10 +7,10 @@ import importlib
 
 # Configure your pipeline by listing agent file names in execution order
 # Examples:
-# AGENT_ORDER = ["catagent_classifier"]  # Classification only
-# AGENT_ORDER = ["catagent_summarizer"]  # Summary only
-# AGENT_ORDER = ["catagent_analyzer", "catagent_classifier"]  # Analysis + Classification
-AGENT_ORDER = ["catagent_analyzer", "catagent_classifier", "catagent_summarizer"]  # Full workflow
+# AGENT_ORDER = ["summarizedata_classifier"]  # Classification only
+# AGENT_ORDER = ["summarizedata_summarizer"]  # Summary only
+# AGENT_ORDER = ["summarizedata_analyzer", "summarizedata_classifier"]  # Analysis + Classification
+AGENT_ORDER = ["summarizedata_analyzer", "summarizedata_classifier", "summarizedata_summarizer"]  # Full workflow
 
 def build():
     steps = []

@@ -1,4 +1,4 @@
-# catagent_analyzer.py
+# summarizedata_analyzer.py
 from sutra import Agent
 
 analyzer = Agent(
