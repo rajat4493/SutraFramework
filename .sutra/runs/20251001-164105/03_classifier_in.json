@@ -1,0 +1,6 @@
+{
+  "analyzer": {
+    "error": "exception",
+    "message": "timed out"
+  }
+}

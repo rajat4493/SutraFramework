@@ -1,5 +1,5 @@
-# sutra.py — SutraAI: Local-first agent workflows with flexible pipeline selection
-import argparse, importlib.util, json, pathlib, sys, time, types, urllib.request
+# sutra.py — SutraAI: Local-first agent workflows
+import argparse, importlib.util, json, pathlib, sys, time, types, urllib.request, subprocess
 
 # ---------- Trace ----------
 RUNS_DIR = pathlib.Path(".sutra") / "runs"
@@ -19,7 +19,7 @@ class Trace:
 
 # ---------- Ollama ----------
 class Ollama:
-    def __init__(self, model="llama3.1:8b", host="http://localhost:11434"):
+    def __init__(self, model="llama3.1:latest", host="http://localhost:11434"):
         self.model, self.host = model, host.rstrip("/")
     def generate(self, prompt, temperature=0.2, json_mode=False):
         url = f"{self.host}/api/generate"
@@ -106,10 +106,10 @@ class Agent:
                 json_mode=self.expects_json,
                 temperature=self.temperature
             )
-            last_raw = raw
+            last_raw = raw.strip()
 
             if not self.expects_json:
-                return {self.output_key: raw.strip()}
+                return {self.output_key: raw}
 
             obj = None
             try:
@@ -148,134 +148,135 @@ class Pipeline:
             tr.dump(f"{st.agent.name}_out", s)
         return s
 
-# ---------- IMPROVED GENERATOR ----------
-def create_analyzer_agent(project_name: str) -> str:
-    """Generate analyzer.py file"""
-    return f"""# {project_name}_analyzer.py
+# ---------- INTERACTIVE GENERATOR ----------
+def create_generic_agent(project_name: str, agent_name: str, agent_purpose: str, model: str) -> str:
+    """Generate a generic agent file"""
+    return f"""# {project_name}_{agent_name}.py
 from sutra import Agent
 
-analyzer = Agent(
-    name='analyzer',
-    objective='Analyze and understand the input content',
-    model='llama3.1:8b',
-    prompt='''Analyze the following content thoroughly.
+{agent_name} = Agent(
+    name='{agent_name}',
+    objective='{agent_purpose}',
+    model='{model}',
+    prompt='''{agent_purpose}
 
-Content: {{text}}
+Input: {{text}}
 
-Break down and analyze this content. Return JSON with:
-- "content_type": what type of content this is
-- "key_themes": main themes or topics found
-- "complexity": how complex the content is (simple/medium/complex)
-- "analysis": detailed analysis of the content
-- "notable_elements": any important elements worth highlighting
+Process the input and return structured JSON.
+Be specific and clear in your output.
 
 Return only valid JSON.''',
     expects_json=True,
-    output_key='analyzer',
-    required_keys=['content_type', 'key_themes', 'analysis'],
+    output_key='{agent_name}',
+    required_keys=[],
     retries=1,
     temperature=0.1
 )"""
 
-def create_classifier_agent(project_name: str) -> str:
-    """Generate classifier.py file"""
-    return f"""# {project_name}_classifier.py
-from sutra import Agent
-
-classifier = Agent(
-    name='classifier',
-    objective='Classify and categorize content appropriately',
-    model='gemma2:2b',
-    prompt='''Classify the following content into appropriate categories.
-
-Content to classify: {{text}}
-Analysis (if available): {{analyzer}}
-
-Classify this content. Return JSON with:
-- "primary_category": main category (e.g., business, technical, personal)
-- "subcategory": more specific classification
-- "priority_level": importance level (low/medium/high)
-- "tags": list of relevant tags
-- "confidence": confidence in classification (1-10)
-- "reasoning": brief explanation of classification choice
-
-Return only valid JSON.''',
-    expects_json=True,
-    output_key='classifier',
-    required_keys=['primary_category', 'confidence', 'reasoning'],
-    retries=1,
-    temperature=0.1
-)"""
-
-def create_summarizer_agent(project_name: str) -> str:
-    """Generate summarizer.py file"""
-    return f"""# {project_name}_summarizer.py
-from sutra import Agent
-
-summarizer = Agent(
-    name='summarizer',
-    objective='Create clear summary and actionable output',
-    model='mistral:7b',
-    prompt='''Create a comprehensive summary and final output.
-
-Original content: {{text}}
-Analysis: {{analyzer}}
-Classification: {{classifier}}
-
-Create final summary. Return JSON with:
-- "summary": clear 2-3 sentence summary
-- "key_points": list of most important points
-- "action_items": suggested next steps or actions
-- "final_assessment": overall assessment of the content
-- "recommendations": any recommendations based on the content
-
-Return only valid JSON.''',
-    expects_json=True,
-    output_key='summarizer',
-    required_keys=['summary', 'key_points', 'final_assessment'],
-    retries=1,
-    temperature=0.1
-)"""
-
-def generate_pipeline_file(project_name: str, description: str) -> str:
-    """Generate simple pipeline file with agent name list"""
-    lines = [
-        f"# {project_name}_pipeline.py",
-        f"# Pipeline: {description}",
-        f"# Edit AGENT_ORDER list to choose which agents to use and in what order",
-        "",
-        "from sutra import Step, Pipeline",
-        "import importlib",
-        "",
-        "# Configure your pipeline by listing agent file names in execution order",
-        "# Examples:",
-        f'# AGENT_ORDER = ["{project_name}_classifier"]  # Classification only',
-        f'# AGENT_ORDER = ["{project_name}_summarizer"]  # Summary only',
-        f'# AGENT_ORDER = ["{project_name}_analyzer", "{project_name}_classifier"]  # Analysis + Classification',
-        f'AGENT_ORDER = ["{project_name}_analyzer", "{project_name}_classifier", "{project_name}_summarizer"]  # Full workflow',
-        "",
-        "def build():",
-        "    steps = []",
-        "    previous_outputs = ['text']  # Start with input text",
-        "    ",
-        "    for agent_file in AGENT_ORDER:",
-        "        # Import the agent from its file",
-        "        module = importlib.import_module(agent_file)",
-        "        agent_name = agent_file.split('_')[-1]  # Get agent name from filename",
-        "        agent = getattr(module, agent_name)",
-        "        ",
-        "        # Create step with outputs from all previous agents",
-        "        steps.append(Step(agent, takes=previous_outputs.copy()))",
-        "        ",
-        "        # Add this agent's output for next agent",
-        "        previous_outputs.append(agent_name)",
-        "    ",
-        "    return Pipeline(steps)",
-        "",
-        "DEFAULT_INPUT = {'text': 'Sample text to process - replace with your actual content'}"
-    ]
+def interactive_agent_config(project_name: str) -> list:
+    """Get agent configuration from user"""
+    print("\nConfigure your agents:")
     
-    return "\n".join(lines)
+    while True:
+        try:
+            num = int(input("How many agents? (1-5): "))
+            if 1 <= num <= 5: break
+        except: pass
+        print("Enter 1-5")
+    
+    agents = []
+    models = [cmd_doctor.models]
+    
+    for i in range(num):
+        print(f"\n=== Agent {i+1} ===")
+        
+        while True:
+            name = input("Name: ").strip().lower().replace(' ', '_')
+            if name and name.isidentifier(): break
+            print("Invalid name")
+        
+        purpose = input("Purpose: ").strip() or f"Process {name}"
+        
+        print("Models: " + ", ".join(f"{j+1}={m}" for j, m in enumerate(models)))
+        while True:
+            try:
+                choice = input(f"Model (1-{len(models)}) [1]: ").strip() or "1"
+                idx = int(choice) - 1
+                if 0 <= idx < len(models):
+                    model = models[idx]
+                    break
+            except: pass
+        
+        agents.append({'name': name, 'purpose': purpose, 'model': model})
+    
+    print("\n=== Summary ===")
+    for i, a in enumerate(agents, 1):
+        print(f"{i}. {a['name']} ({a['model']}): {a['purpose']}")
+    
+    if input("\nCreate? [Y/n]: ").lower() in ('', 'y'):
+        return agents
+    return []
+
+def generate_dynamic_pipeline(project_name: str, description: str, agent_names: list) -> str:
+    """Generate pipeline file"""
+    agents_str = ", ".join([f'"{project_name}_{n}"' for n in agent_names])
+    
+    return f"""# {project_name}_pipeline.py
+# {description}
+
+from sutra import Step, Pipeline
+import importlib
+
+AGENT_ORDER = [{agents_str}]
+
+def build():
+    steps = []
+    prev = ['text']
+    
+    for agent_file in AGENT_ORDER:
+        mod = importlib.import_module(agent_file)
+        agent_name = agent_file.split('_')[-1]
+        agent = getattr(mod, agent_name)
+        steps.append(Step(agent, takes=prev.copy()))
+        prev.append(agent_name)
+    
+    return Pipeline(steps)
+
+DEFAULT_INPUT = {{'text': 'test input'}}
+"""
+
+def cmd_create(project_name, description):
+    """Create new project"""
+    project_name = project_name.replace('.py', '').replace('.', '_').replace('-', '_')
+    project_dir = pathlib.Path("projects") / project_name
+    
+    if project_dir.exists():
+        if input(f"{project_dir} exists. Overwrite? [y/N]: ").lower() != 'y':
+            return
+    
+    project_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"\nProject: {project_name}")
+    print(f"Location: {project_dir}")
+    
+    agents = interactive_agent_config(project_name)
+    if not agents: 
+        print("Cancelled")
+        return
+    
+    print(f"\nGenerating files...")
+    
+    for a in agents:
+        f = project_dir / f"{project_name}_{a['name']}.py"
+        f.write_text(create_generic_agent(project_name, a['name'], a['purpose'], a['model']), encoding="utf-8")
+        print(f"  {f.name}")
+    
+    names = [a['name'] for a in agents]
+    pipeline = project_dir / f"{project_name}_pipeline.py"
+    pipeline.write_text(generate_dynamic_pipeline(project_name, description, names), encoding="utf-8")
+    print(f"  {pipeline.name}")
+    
+    print(f"\nTest: python sutra.py test {pipeline}")
 
 # ---------- CLI ----------
 def _import_module(path_str)->types.ModuleType:
@@ -286,58 +287,31 @@ def _import_module(path_str)->types.ModuleType:
     spec.loader.exec_module(mod)
     return mod
 
-def cmd_create(project_name, description):
-    """Create a new project with 3 separate agent files and configurable pipeline"""
-    # Sanitize project name
-    project_name = project_name.replace('.py', '').replace('.', '_').replace('-', '_')
-    
-    print(f"Creating project: {project_name}")
-    print(f"Description: {description}")
-    print("Generating 3 separate agent files + 1 pipeline file")
-    
-    # Generate files
-    analyzer_file = f"{project_name}_analyzer.py"
-    classifier_file = f"{project_name}_classifier.py" 
-    summarizer_file = f"{project_name}_summarizer.py"
-    pipeline_file = f"{project_name}_pipeline.py"
-    
-    files_to_create = [analyzer_file, classifier_file, summarizer_file, pipeline_file]
-    
-    # Check if files exist
-    existing = [f for f in files_to_create if pathlib.Path(f).exists()]
-    if existing:
-        print(f"Files exist: {existing}")
-        overwrite = input("Overwrite existing files? [y/N]: ")
-        if overwrite.lower() != 'y':
-            print("Cancelled.")
-            return
-    
-    # Write agent files
-    pathlib.Path(analyzer_file).write_text(create_analyzer_agent(project_name), encoding="utf-8")
-    pathlib.Path(classifier_file).write_text(create_classifier_agent(project_name), encoding="utf-8")
-    pathlib.Path(summarizer_file).write_text(create_summarizer_agent(project_name), encoding="utf-8")
-    print(f"Created: {analyzer_file}")
-    print(f"Created: {classifier_file}")
-    print(f"Created: {summarizer_file}")
-    
-    # Write pipeline file  
-    pipeline_code = generate_pipeline_file(project_name, description)
-    pathlib.Path(pipeline_file).write_text(pipeline_code, encoding="utf-8")
-    print(f"Created: {pipeline_file}")
-    
-    print(f"\nProject '{project_name}' ready!")
-    print(f"\nTo use different agent combinations, edit {pipeline_file}:")
-    print(f"Change the AGENT_ORDER list to include only the agents you want.")
-    print(f"\nExamples:")
-    print(f'Classification only:  AGENT_ORDER = ["{project_name}_classifier"]')
-    print(f'Summary only:         AGENT_ORDER = ["{project_name}_summarizer"]')
-    print(f'Analysis + Summary:   AGENT_ORDER = ["{project_name}_analyzer", "{project_name}_summarizer"]')
-    print(f"\nTest: python sutra.py test {pipeline_file}")
-
 def cmd_run(filename, input_json=None):
-    mod = _import_module(filename)
+    # 1) Resolve paths
+    from pathlib import Path
+    import sys, json, importlib.util
+
+    pipeline_path = Path(filename).resolve()
+    project_dir = pipeline_path.parent  # e.g., projects/QuizMaster
+
+    # 2) Make project folder importable (so pipeline can import sibling agents)
+    if str(project_dir) not in sys.path:
+        sys.path.insert(0, str(project_dir))
+
+    # 3) Import the pipeline module by file path
+    spec = importlib.util.spec_from_file_location("pipeline", str(pipeline_path))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    # 4) Build + run
     pipe = mod.build()
-    init = json.loads(input_json) if input_json else {}
+
+    try:
+        init = json.loads(input_json) if input_json else {}
+    except Exception as e:
+        raise ValueError(f"Invalid --input JSON: {e}")
+
     out = pipe.run(init)
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
@@ -345,35 +319,38 @@ def cmd_test(filename):
     mod = _import_module(filename)
     pipe = mod.build()
     init = getattr(mod, "DEFAULT_INPUT", {})
-    print(f"Testing with: {init}")
+    print(f"Testing: {init}")
     out = pipe.run(init)
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 def cmd_doctor():
     try:
-        urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3)
-        print("✓ Ollama reachable")
+        response = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3)
+        print("Ollama OK")
+        data = json.loads(response.read().decode('utf-8'))
+        models = [model['name'] for model in data.get('models', [])]
+        print(f"Models: {', '.join(models)}")
         r = Ollama().generate("Say OK.", json_mode=False)
-        print("✓ Generation works:", (r[:60] + "…") if len(r)>60 else r)
+        print(f"Test: {r[:60]}")
     except Exception as e:
-        print("✗ Ollama issue:", e)
+        print(f"Error: {e}")
 
 def main():
-    ap = argparse.ArgumentParser(prog="sutra", description="SutraAI: Local-first agent workflows")
+    ap = argparse.ArgumentParser(prog="sutra")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    c = sub.add_parser("create", help="Create new project with 3 flexible agents")
-    c.add_argument("project_name", help="Project name (e.g., ticket_processor)")
-    c.add_argument("description", help="What the workflow should do")
+    c = sub.add_parser("create")
+    c.add_argument("project_name")
+    c.add_argument("description")
 
-    r = sub.add_parser("run", help="Run a pipeline file")
-    r.add_argument("pipeline_file", help="e.g., ticket_processor_pipeline.py")
-    r.add_argument("--input", help="JSON input", default=None)
+    r = sub.add_parser("run")
+    r.add_argument("pipeline_file")
+    r.add_argument("--input", default=None)
 
-    t = sub.add_parser("test", help="Test pipeline with DEFAULT_INPUT")
+    t = sub.add_parser("test")
     t.add_argument("pipeline_file")
 
-    d = sub.add_parser("doctor", help="Check Ollama connectivity")
+    d = sub.add_parser("doctor")
 
     args = ap.parse_args()
     if args.cmd == "create":
