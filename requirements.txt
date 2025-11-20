@@ -1,0 +1,2 @@
+# Minimal developer requirements for SutraFramework
+pytest>=7.0

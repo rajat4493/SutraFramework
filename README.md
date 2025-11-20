@@ -23,15 +23,33 @@ cd sutra
 # Install dependencies
 pip install -r requirements.txt
 
-# Run a sample pipeline
-python3 sutra.py run examples/catagent_pipeline.py --input '{"text":"Hello World"}'
+# Run a sample pipeline (no Ollama required)
+python3 sutra.py test examples/echo_pipeline.py
 
-Example Output
+Or run with explicit input:
+python3 sutra.py run examples/echo_pipeline.py --input '{"text":"Ticket #12847: App crashes on photo upload after update 2.3.1"}'
+
+Example Output (from `examples/echo_pipeline.py`):
 {
   "text": "Ticket #12847: App crashes on photo upload after update 2.3.1",
-  "analyzer": { "category": "Bug Report", "root_cause": "Crash on photo upload" },
-  "classifier": { "priority": "High" },
-  "summarizer": { "summary": "App crashes on photo upload after update 2.3.1" }
+  "analyzer": [
+    {
+      "summary": "Ticket #12847: App crashes on photo upload after update 2.3.1",
+      "category": "Bug Report",
+      "root_cause": "Crash on photo upload"
+    }
+  ],
+  "classifier": [
+    {
+      "priority": "High",
+      "team": "mobile",
+      "ticket_type": "bug"
+    }
+  ],
+  "replier": {
+    "reply": "Thanks for the report. We've identified the issue and our mobile team is on it.",
+    "tone": "calm"
+  }
 }
 
 

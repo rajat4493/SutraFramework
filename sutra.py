@@ -1,5 +1,5 @@
 # sutra.py — SutraAI: Local-first agent workflows
-import argparse, importlib.util, json, pathlib, sys, time, types, urllib.request, subprocess
+import argparse, importlib.util, json, pathlib, sys, time, types, urllib.request, urllib.error, subprocess
 
 # ---------- Trace ----------
 RUNS_DIR = pathlib.Path(".sutra") / "runs"
@@ -21,21 +21,60 @@ class Trace:
 class Ollama:
     def __init__(self, model="llama3.1:latest", host="http://localhost:11434"):
         self.model, self.host = model, host.rstrip("/")
-    def generate(self, prompt, temperature=0.2, json_mode=False):
+
+    def generate(self, prompt, temperature=0.2, json_mode=False, timeout=120):
         url = f"{self.host}/api/generate"
         payload = {"model": self.model, "prompt": prompt, "temperature": temperature, "stream": False}
         if json_mode: payload["format"] = "json"
-        req = urllib.request.Request(
-            url, data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type":"application/json"}
-        )
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return json.loads(r.read().decode("utf-8")).get("response","")
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                body = r.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode("utf-8")
+            except Exception:
+                body = str(e)
+            raise RuntimeError(f"Ollama HTTP error {e.code}: {body}")
+        except Exception as e:
+            raise RuntimeError(f"Ollama connection error: {e}")
+
+        # Try to parse JSON responses and normalize common shapes
+        try:
+            j = json.loads(body)
+            if isinstance(j, dict):
+                for key in ("response", "text", "output", "result"):
+                    if key in j:
+                        val = j[key]
+                        return val if isinstance(val, str) else json.dumps(val)
+                if "choices" in j and isinstance(j["choices"], list) and j["choices"]:
+                    choice = j["choices"][0]
+                    if isinstance(choice, dict):
+                        for k in ("text", "message"):
+                            if k in choice:
+                                val = choice[k]
+                                return val if isinstance(val, str) else json.dumps(val)
+                    if isinstance(choice, str):
+                        return choice
+            # If parsed JSON didn't contain a clear text field, return raw body
+            return body
+        except Exception:
+            # Not JSON — return raw body
+            return body
 
 # ---------- JSON Helpers ----------
 def _extract_json(text: str):
     import re
-    m = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+    m = None
+    # Try full-text JSON parse first
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    # Fallback: find first JSON object/array (non-greedy)
+    m = re.search(r'(\{.*?\}|\[.*?\])', text, re.DOTALL)
     if not m: return None
     try: return json.loads(m.group(1))
     except: return None
@@ -149,6 +188,15 @@ class Pipeline:
         return s
 
 # ---------- INTERACTIVE GENERATOR ----------
+def get_available_models(host="http://localhost:11434", timeout=2):
+    """Return a list of model names from a local Ollama instance, or empty list on error."""
+    try:
+        resp = urllib.request.urlopen(f"{host.rstrip('/')}/api/tags", timeout=timeout)
+        data = json.loads(resp.read().decode('utf-8'))
+        models = [m.get('name') for m in data.get('models', []) if isinstance(m, dict) and 'name' in m]
+        return [m for m in models if m]
+    except Exception:
+        return []
 def create_generic_agent(project_name: str, agent_name: str, agent_purpose: str, model: str) -> str:
     """Generate a generic agent file"""
     return f"""# {project_name}_{agent_name}.py
@@ -185,7 +233,7 @@ def interactive_agent_config(project_name: str) -> list:
         print("Enter 1-5")
     
     agents = []
-    models = [cmd_doctor.models]
+    models = get_available_models() or ["llama3.1:latest"]
     
     for i in range(num):
         print(f"\n=== Agent {i+1} ===")
@@ -324,12 +372,14 @@ def cmd_test(filename):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 def cmd_doctor():
-    try:
-        response = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3)
+    models = get_available_models()
+    if models:
         print("Ollama OK")
-        data = json.loads(response.read().decode('utf-8'))
-        models = [model['name'] for model in data.get('models', [])]
         print(f"Models: {', '.join(models)}")
+    else:
+        print("Ollama not reachable or no models found")
+
+    try:
         r = Ollama().generate("Say OK.", json_mode=False)
         print(f"Test: {r[:60]}")
     except Exception as e:
