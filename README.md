@@ -146,8 +146,8 @@ Commit changes (git commit -m "Add awesome agent")
 Push and open a PR
 
 
-📜 License
+License
 MIT License – see LICENSE for details.
 
-🌟 Try SutraAI Today!
+Try SutraAI Today!
 SutraAI is the fastest way to build and debug local AI agent pipelines. Clone the repo, try the examples, and let us know what you think in Discussions!
