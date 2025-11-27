@@ -1,20 +1,20 @@
-SutraAI 🧵
+SutraAI 
 Local-first agent workflow framework for hackable, reliable multi-agent pipelines.
 
 Build, run, and debug AI agent pipelines entirely on your machine. No API keys, no cloud, no bloat.
 
 SutraAI is a lightweight, open-source framework for orchestrating AI agent pipelines. Designed for developers who want control, hackability, and offline execution, SutraAI lets you sequence small-to-mid-sized language models (2B–7B) with a simple, Python-based workflow. Think of it as the anti-bloat alternative to heavy frameworks like LangChain or CrewAI—built for intermediates who value clarity and flexibility.
 
-✨ Features
+#######Features
 
-🔗 Multi-Agent Pipelines – Define clear, sequential agent workflows using simple Python files, no complex graph abstractions.
-💻 Local-First Execution – Runs entirely offline using Ollama or similar local model servers. No cloud dependency, no API keys.
-🛠️ Hackable Core – Agents are just Python scripts with editable prompts, making customization a breeze.
-🧰 CLI & Templates – Generate working pipelines in seconds with commands like sutra create study-helper.
-🛡️ Reliable Orchestration – Built-in retries, JSON schema validation, and error recovery for robust execution.
+Multi-Agent Pipelines – Define clear, sequential agent workflows using simple Python files, no complex graph abstractions.
+Local-First Execution – Runs entirely offline using Ollama or similar local model servers. No cloud dependency, no API keys.
+Hackable Core – Agents are just Python scripts with editable prompts, making customization a breeze.
+CLI & Templates – Generate working pipelines in seconds with commands like sutra create study-helper.
+Reliable Orchestration – Built-in retries, JSON schema validation, and error recovery for robust execution.
 
 
-🚀 Quickstart
+Quickstart
 Get up and running in minutes:
 # Clone the repository
 git clone https://github.com/yourusername/sutra
@@ -53,11 +53,11 @@ Example Output (from `examples/echo_pipeline.py`):
 }
 
 
-📊 Status
+Status
 
 Status: Alpha | Experimental
 
-🛠️ Why SutraAI?
+Why SutraAI?
 SutraAI is built for developers who want to avoid the complexity and overhead of bloated frameworks. Here’s how it stacks up:
 
 
@@ -101,7 +101,7 @@ Setup Time
 
 SutraAI is the framework for those who want to build fast, debug easily, and stay in control.
 
-🗺️ Roadmap
+Roadmap
 
  CLI generator (sutra create <name> "<task>") for instant pipeline creation
  DAG executor for parallel branches and joins
@@ -110,7 +110,7 @@ SutraAI is the framework for those who want to build fast, debug easily, and sta
  Web UI for run history, input/output visualization, and replays
 
 
-📂 Project Structure
+Project Structure
 sutra/
 ├── sutra.py            # CLI entry point
 ├── examples/           # Ready-to-run pipelines
@@ -125,18 +125,18 @@ sutra/
 └── README.md
 
 
-📖 Documentation
+Documentation
 
 Concept – Core ideas behind SutraAI’s design
 Comparisons – How SutraAI differs from other frameworks
 Examples – Code snippets for common pipelines
 
 
-🎥 Demo
+Demo
 
-Check out a short demo video on X or YouTube.
+Check out a short demo video on X or YouTube. - Upcoming
 
-🤝 Contributing
+Contributing
 We welcome contributions! Check out our Issues for bugs, features, or new pipeline ideas. Use our Discussions to share templates or ask questions.
 To get started:
 
