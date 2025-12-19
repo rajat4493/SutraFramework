@@ -139,27 +139,30 @@ class Agent:
         attempts = self.retries + 1
         last_raw = ""
 
+        modes = ([True, False] if self.expects_json else [False])
         for a in range(attempts):
-            raw = llm.generate(
-                p if a==0 else p + "\n\nReturn ONLY valid JSON.",
-                json_mode=self.expects_json,
-                temperature=self.temperature
-            )
-            last_raw = raw.strip()
+            prompt_now = p if a == 0 else p + "\n\nReturn ONLY valid JSON."
+            for jm in modes:
+                raw = llm.generate(
+                    prompt_now,
+                    json_mode=jm and self.expects_json,
+                    temperature=self.temperature
+                )
+                last_raw = raw.strip()
 
-            if not self.expects_json:
-                return {self.output_key: raw}
+                if not self.expects_json:
+                    return {self.output_key: raw}
 
-            obj = None
-            try:
-                obj = json.loads(raw)
-            except:
-                obj = _extract_json(raw)
+                obj = None
+                try:
+                    obj = json.loads(raw)
+                except:
+                    obj = _extract_json(raw)
 
-            obj = _coerce_json_shape(obj, self.required_keys)
-            ok, why = _validate(obj, self.required_keys)
-            if ok:
-                return {self.output_key: obj}
+                obj = _coerce_json_shape(obj, self.required_keys)
+                ok, why = _validate(obj, self.required_keys)
+                if ok:
+                    return {self.output_key: obj}
 
         return {self.output_key: {"error":"invalid_json", "raw": last_raw[:2000]}}
 
